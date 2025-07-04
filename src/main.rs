@@ -4,6 +4,7 @@ use std::{
     net::Ipv4Addr,
 };
 
+use chrono::Local;
 use clap::Parser;
 use hickory_resolver::proto::{
     op::{Message, MessageType, OpCode, ResponseCode},
@@ -12,11 +13,19 @@ use hickory_resolver::proto::{
 };
 use tokio::net::UdpSocket;
 
+macro_rules! log {
+    ($data:expr) => {
+        println!("{} {}", Local::now().format("%Y-%m-%d %H:%M:%S"), $data);
+    };
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn error::Error>> {
     let cli = Cli::parse();
 
     let ipv4 = Ipv4::from_cidr(&cli.cidr)?;
+
+    log!(format!(""));
 
     let socket = UdpSocket::bind(&cli.listen).await?;
     let mut buf = [0u8; 512];
@@ -40,11 +49,11 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
     }
 }
 
-fn query<F>(data: &[u8], fake_ip: F) -> Result<Option<Message>, Box<dyn error::Error>>
+fn query<F>(data: &[u8], fake_ip: F) -> Result<Option<Message>, MyError>
 where
     F: Fn() -> Ipv4Addr,
 {
-    let request = Message::from_bytes(data)?;
+    let request = Message::from_bytes(data).or(Err(MyError::Proto))?;
     if let Some(query) = request.queries().first() {
         let mut response = Message::new();
         response.set_id(request.id());
@@ -76,16 +85,16 @@ struct Ipv4 {
 }
 
 impl Ipv4 {
-    pub fn from_cidr(cidr: &str) -> Result<Self, Box<dyn error::Error>> {
+    pub fn from_cidr(cidr: &str) -> Result<Self, MyError> {
         use ipnetwork::Ipv4Network;
-        let network = cidr.parse::<Ipv4Network>()?;
+        let network = cidr.parse::<Ipv4Network>().or(Err(MyError::Ipv4Network))?;
 
         let mask = network.prefix();
 
         let range = 1u32
             .checked_shl(32 - mask as u32)
             .and_then(|r| if r <= 2 { None } else { Some(r) })
-            .ok_or(IpError::NotEnough)?;
+            .ok_or(MyError::IpNotEnough)?;
 
         Ok(Self {
             base: u32::from(network.network()),
@@ -103,18 +112,20 @@ impl Ipv4 {
 }
 
 #[derive(Debug, Default)]
-enum IpError {
+enum MyError {
     #[default]
-    NotEnough,
+    IpNotEnough,
+    Proto,
+    Ipv4Network,
 }
 
-impl Display for IpError {
+impl Display for MyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
-impl Error for IpError {}
+impl Error for MyError {}
 
 #[cfg(test)]
 mod tests {

@@ -19,6 +19,7 @@ hickory-resolver = "0.25"
 ipnetwork = "0.21"
 rand = "0.8"
 clap = { version = "4", features = ["derive"] }
+chrono = "0.4"
 
 [dev-dependencies]
 hickory-client = "0.25.2"
