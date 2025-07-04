@@ -1,0 +1,24 @@
+[package]
+name = "fake-dns"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "fake-dns"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", features = [
+    "macros",
+    "sync",
+    "fs",
+    "process",
+    "rt-multi-thread",
+] }
+hickory-resolver = "0.25"
+ipnetwork = "0.21"
+rand = "0.8"
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+hickory-client = "0.25.2"
