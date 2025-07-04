@@ -53,7 +53,7 @@ where
         response.set_response_code(ResponseCode::NoError);
         response.add_query(query.clone());
 
-        let record = Record::from_rdata(query.name().clone(), 60, RData::A(fake_ip().into()));
+        let record = Record::from_rdata(query.name().clone(), 600, RData::A(fake_ip().into()));
         response.add_answer(record);
         Ok(Some(response))
     } else {
