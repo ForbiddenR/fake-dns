@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
         let request_bytes = &buf[..size];
 
         match query(request_bytes, || ipv4.get_ip()) {
-            Ok(Some(m)) => match &m.to_bytes() {
+            Ok(m) => match &m.to_bytes() {
                 Ok(b) => {
                     if let Err(e) = socket.send_to(b, &src).await {
                         log!("failed to send dns response {:?}", e)
@@ -43,31 +43,27 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
                 }
                 Err(e) => log!("failed to parse message: {:?}", e),
             },
-            Ok(None) => log!("empty request bytes"),
             Err(e) => log!("failed to parse request bytes {:?}", e),
         };
     }
 }
 
-fn query<F>(data: &[u8], fake_ip: F) -> Result<Option<Message>, MyError>
+fn query<F>(data: &[u8], fake_ip: F) -> Result<Message, MyError>
 where
     F: Fn() -> Ipv4Addr,
 {
     let request = Message::from_bytes(data).or(Err(MyError::Proto))?;
-    if let Some(query) = request.queries().first() {
-        let mut response = Message::new();
-        response.set_id(request.id());
-        response.set_message_type(MessageType::Response);
-        response.set_op_code(OpCode::Query);
-        response.set_response_code(ResponseCode::NoError);
-        response.add_query(query.clone());
+    let query = request.queries().first().ok_or(MyError::EmptyQuery)?;
+    let mut response = Message::new();
+    response.set_id(request.id());
+    response.set_message_type(MessageType::Response);
+    response.set_op_code(OpCode::Query);
+    response.set_response_code(ResponseCode::NoError);
+    response.add_query(query.clone());
 
-        let record = Record::from_rdata(query.name().clone(), 600, RData::A(fake_ip().into()));
-        response.add_answer(record);
-        Ok(Some(response))
-    } else {
-        Ok(None)
-    }
+    let record = Record::from_rdata(query.name().clone(), 600, RData::A(fake_ip().into()));
+    response.add_answer(record);
+    Ok(response)
 }
 
 #[derive(Debug, Parser)]
@@ -117,6 +113,7 @@ enum MyError {
     IpNotEnough,
     Proto,
     Ipv4Network,
+    EmptyQuery,
 }
 
 impl Display for MyError {
