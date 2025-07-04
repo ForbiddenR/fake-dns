@@ -14,8 +14,8 @@ use hickory_resolver::proto::{
 use tokio::net::UdpSocket;
 
 macro_rules! log {
-    ($data:expr) => {
-        println!("{} {}", Local::now().format("%Y-%m-%d %H:%M:%S"), $data);
+    ($($arg:tt)*) => {
+        println!("{} {}", Local::now().format("%Y-%m-%d %H:%M:%S"), format!($($arg)*))
     };
 }
 
@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
 
     let ipv4 = Ipv4::from_cidr(&cli.cidr)?;
 
-    log!(format!(""));
+    log!("start listening on {}", &cli.listen);
 
     let socket = UdpSocket::bind(&cli.listen).await?;
     let mut buf = [0u8; 512];
@@ -38,13 +38,13 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
             Ok(Some(m)) => match &m.to_bytes() {
                 Ok(b) => {
                     if let Err(e) = socket.send_to(b, &src).await {
-                        println!("failed to send dns response {:?}", e)
+                        log!("failed to send dns response {:?}", e)
                     }
                 }
-                Err(e) => println!("failed to parse message: {:?}", e),
+                Err(e) => log!("failed to parse message: {:?}", e),
             },
-            Ok(None) => println!("empty request bytes"),
-            Err(e) => println!("failed to parse request bytes {:?}", e),
+            Ok(None) => log!("empty request bytes"),
+            Err(e) => log!("failed to parse request bytes {:?}", e),
         };
     }
 }
